@@ -1,0 +1,14 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+ labels:
+   subjectName: trishul_k8s_admins
+ name: trishul_k8s_admins
+subjects:
+- kind: Group
+  name: team:sa20-test:trishul_k8s_admins
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io
