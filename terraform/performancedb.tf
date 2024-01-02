@@ -1,0 +1,44 @@
+resource "openstack_compute_instance_v2" "perfdb-instance" {
+  count             = var.num_perfdb_nodes
+  name              = "${var.perfdb_hostname}${count.index}.${var.dns_name}"
+  key_pair          = var.sos_keypair
+  flavor_name       = var.perfdb_flavor  
+  security_groups   = ["default", openstack_compute_secgroup_v2.vsm_secgroup.name]
+
+  image_name        = var.perf_image
+
+  network {
+    uuid = var.network_uuid
+  }
+
+  lifecycle {
+    ignore_changes = [image_name]
+  }
+  
+  provisioner "local-exec" {
+    command = "echo '[perfdb]\n${self.access_ip_v4}' > ../playbooks/inventories/${var.perfdb_hostname}${count.index}"
+    interpreter = ["/bin/bash", "-c"]
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "sudo yum remove docker docker-client docker-client-latest docker-common docker-latest docker-latest-logrotate docker-logrotate docker-engine",
+      "sudo yum install -y yum-utils device-mapper-persistent-data lvm2",
+      "sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo",
+      "sudo yum install -y docker-ce docker-ce-cli containerd.io",
+      "sudo systemctl start docker",
+      "sudo systemctl enable docker",
+    ]
+
+    connection {
+      type        = "ssh"
+      user        = "centos"
+      private_key = file("~/.ssh/crkey")
+      host        = "${self.access_ip_v4}"
+    }
+  }
+}
+
+output "perfdb" {
+  value = openstack_compute_instance_v2.perfdb-instance.*.access_ip_v4
+}
