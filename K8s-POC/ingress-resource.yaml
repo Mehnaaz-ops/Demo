@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1 
+kind: Ingress 
+metadata: 
+  name: jenkins-ingress 
+  namespace: poc-network 
+  annotations: 
+   nginx.ingress.kubernetes.io/use-regex: "true" 
+  # nginx.ingress.kubernetes.io/rewrite-target: /$1 
+spec: 
+  tls: 
+  - hosts: 
+      - dev-k8s-ingress.its.hpecorp.net 
+    secretName: my-tls-secret-for-nginx 
+  ingressClassName: nginx-default 
+  rules: 
+  - host: dev-k8s-ingress.its.hpecorp.net 
+    http: 
+      paths: 
+      - path: /jenkins/(.*) 
+        pathType: ImplementationSpecific 
+        backend: 
+          service: 
+            name: jenkins 
+            port:   
+              number: 8080
