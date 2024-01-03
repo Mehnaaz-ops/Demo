@@ -1,0 +1,224 @@
+@Library("pipeline-helper@master") _
+
+Map deploymentVariables = [:]
+Map  jobParams = [:]
+
+def getEmailDetails(def jobStatus, def repoVersion){
+  Map emailDetails = [:]
+    emailDetails['sender'] = "deploy-team@hpe.com"
+    emailDetails['recipients'] = "SMART-Team-PRO-Deploy-Group@groups.int.hpe.com,SMART-Team-DeploymentMgmt@groups.int.hpe.com"
+    emailDetails['subject'] = "${params.REPO} PRO deploy ${jobStatus}"
+    emailDetails['body'] = """Hi all,
+\tDeploy is ${jobStatus} for repository: ${params.REPO} with version: ${repoVersion}.
+\tPlease take a look at the job: ${BUILD_URL}.
+\tIf the build is not accessible anymore, see the attached jenkins job build log"""
+
+return emailDetails
+}
+
+pipeline {
+
+    agent {
+        label "${params.NODE}"
+    }
+    options {
+        timestamps()
+    }
+
+    stages {
+
+        stage('Determine versions and properties') {
+            steps {
+                script {
+                    jenkinsUtils.loadDeploymentVariables(deploymentVariables, params.REPO, params.ENV)
+                    currentBuild.displayName = currentBuild.number + "-${params.ENV}-${params.REPO}-${deploymentVariables.repoVersion}"
+                    // Uncomment this only when debugging
+                    //println("deploymentVariables is: ${deploymentVariables}")
+                }
+            }
+            post {
+                failure {
+                    script {
+                        currentBuild.result = "FAILED"
+                        error("Could not load deployment variables for application: ${params.REPO} and environment: ${params.ENV}!")
+                    }
+                }
+                aborted {
+                    script {
+                        currentBuild.result = "ABORTED"
+                        error("Aborting stage: Determine versions and properties")
+
+                    }
+                }
+            }
+
+        }
+        stage("Deploy and Test ") {
+            when {
+                expression { params.DEPLOY_GREEN || deploymentVariables.repoVersion != deploymentVariables.deployedVersion }
+            }
+            steps {
+                script {
+                        if ((((deploymentVariables.proLock == "on") && (deploymentVariables.overrideWarrantyPeriod == "on")) || ((deploymentVariables.proLock == "off") && (deploymentVariables.proRepoLock == "off"))))
+                         {
+                            jobParams = [REPO:params.REPO,
+                                          ENV:params.ENV,
+                                          SSH_USERNAME:params.SSH_USERNAME,
+                                          VERSION:deploymentVariables.repoVersion,
+                                          INVENTORY_VERSION:'master',
+                                          ANSIBLE_COMMON_VERSION: 'master',
+                                          VAULT_TOKEN: params.VAULT_TOKEN]
+
+					        jenkinsUtils.buildJob(deploymentVariables.deploy_job, jobParams, true, true)
+                        }
+                        else {
+                            println ("Application: ${REPO} cannot be deployed to environment: ${ENV} because there is a warranty period turned on. Global warranty: ${proLock}, Repository warranty: ${proRepoLock}")
+                        }
+                    }
+            }
+            post {
+                failure {
+                    script {
+                        currentBuild.result = "FAILED"
+                        error("Deployment of application: ${params.REPO} in environment: ${params.ENV} failed!")
+                    }
+                }
+                aborted {
+                    script {
+                        currentBuild.result = "ABORTED"
+                        error("Aborting stage: Deployment")
+                    }
+                }
+            }
+
+        }
+        stage("Prepare for tests") {
+            steps {
+                script {
+                    if("deploymentVariables.production_test_suite"){
+                        jobParams['SUITE']=deploymentVariables.production_test_suite
+                        println("Using Test suite: ${deploymentVariables.production_test_suite}")
+                    } else {
+                        jobParams['SUITE']=deploymentVariables.testSuite
+                        println("Using Test suite: ${deploymentVariables.testSuite}")
+                    }
+                }
+            }
+        }
+        stage("Tests") {
+            parallel {
+                stage("Fitnesse tests") {
+                    when {
+                      expression { deploymentVariables.fitnesse_job != null }
+                    }
+                    steps {
+                        script {
+                            jenkinsUtils.buildJob(deploymentVariables.fitnesse_job, jobParams, true, true)
+                            println("Calling fitnesse job : ${deploymentVariables.fitnesse_job}")
+                        }
+                    }
+                    post {
+                        failure {
+                            script {
+                                currentBuild.result = "FAILED"
+                                error("ERROR: Fitnesse tests for application: ${params.REPO} in environment: ${params.ENV} failed!")
+                            }
+                        }
+                        aborted {
+                            script {
+                                currentBuild.result = "ABORTED"
+                                error("ERROR: Fitnesse tests aborted!")
+                            }
+                        }
+                    }
+                }
+                stage("Selenium tests") {
+                    when {
+                        expression { deploymentVariables.selenium_job != null}
+                    }
+                    steps {
+                        script {
+                            jenkinsUtils.buildJob(deploymentVariables.selenium_job, jobParams, true, true)
+                            println("Calling selenium job : ${deploymentVariables.selenium_job}")
+                        }
+                    }
+                    post {
+                        failure {
+                            script {
+                                currentBuild.result = "FAILED"
+                                error("ERROR: Selenium tests for application: ${params.REPO} in environment: ${params.ENV} failed!")
+                            }
+                        }
+                        aborted {
+                            script {
+                                currentBuild.result = "ABORTED"
+                                error("ERROR: Selenium tests aborted!")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+         stage("Update versions") {
+             steps {
+                 script {
+                   	retry(10) {
+                         versions.setDeployedAppVersion(environment: "${params.ENV}", applicationGroup: "colo", applicationName: "${params.REPO}", newVersion: deploymentVariables.repoVersion)
+                         sleep(time:5, unit: "SECONDS")
+                     }
+                 }
+             }
+             post {
+                 success {
+                     script {
+                         println("Versions on GitHub repository were successfully updated! Application: ${params.REPO}  version: ${deploymentVariables.repoVersion} environment: ${params.ENV}")
+                     }
+                 }
+                 failure {
+                     script {
+                         println("ERROR: Could not update versions! Application: ${params.REPO}  version: ${deploymentVariables.repoVersion} environment: ${params.ENV}")
+                     }
+                 }
+             }
+         }
+    }
+    post {
+        always {
+            script{
+                // Revoke PRO vault token, only when job is called directly and not from solution deploy job
+                if (!currentBuild.upstreamBuilds) {
+                    println("Revoke token for PRO Vault")
+                    vaultConnector.revokeVaultToken("${params.ENV}", "${params.VAULT_TOKEN}", "COLO")
+                } else {
+                    println ("Token will not be revoked when the job is called from the upstream job")
+                }
+
+            }
+        }
+        success{
+            script {
+
+                Map emailDetails = getEmailDetails("success", deploymentVariables.repoVersion)
+
+                jenkinsUtils.sendEmail(emailDetails['recipients'], emailDetails['sender'], emailDetails['subject'], emailDetails['body'], "",true,false)
+            }
+
+        }
+        failure{
+            script {
+
+                Map emailDetails = getEmailDetails("failed", deploymentVariables.repoVersion)
+
+                jenkinsUtils.sendEmail(emailDetails['recipients'], emailDetails['sender'], emailDetails['subject'], emailDetails['body'], "",true,false)
+            }
+        }
+        aborted{
+            script {
+
+                Map emailDetails = getEmailDetails("aborted", deploymentVariables.repoVersion)
+
+                jenkinsUtils.sendEmail(emailDetails['recipients'], emailDetails['sender'], emailDetails['subject'], emailDetails['body'], "",true,false)
+            }
+        }
+    }
+}
