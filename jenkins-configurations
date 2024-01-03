@@ -1,0 +1,43 @@
+---
+template:
+  name: pipeline-ref
+  options:
+    source: jobs/sa20/deployTestPipelineColo
+attributes:
+  repository:
+    url: https://github.hpe.com/TS-RnD/jenkins-pipeline-library
+    branch: ${JOB_BRANCH}
+    shallow: true
+    cloneTimeout: 10
+    credentialsId: vault.secret_jenkins.sa20.github-token
+  description: Wrapper job that Deploys and Tests Any Repo [ Both for DEV and ITG ]
+  concurrency: PARALLEL
+  triggers: []
+  inputParameters:
+    - name: VERSION
+      description: You must specify a version for DEV(ITG)
+      type: STRING
+    - name: NODE
+      type: STRING
+      value: j8a2-node-latest
+    - name: JOB_BRANCH
+      description: This is for the pipeline library, DO NOT change the default
+      type: STRING
+      value: master
+    - name: VAULT_TOKEN
+      type: PASSWORD
+    - name: ROLE_ID
+      type: PASSWORD  
+    - name: REPO
+      type: CHOICE
+      value: apache_solution,platform,identity,identity_active,integration,capability_access,data_insights,km,km_doc,km_product,km_software,case_management,case_management_services,portal,portal_swarm_apps,notifications,entitlement,hpesc_credits,hpesc_patch,api_hub,api_hub_deck,dsec_analysis,dsec_client,dsec_server,sadb_receiver_boot,sbs_businessmessage,sbs_customerorganization,sbs_deviceconfiguration,sbs_deviceorganization,sbs_deviceregistration,sbs_event,sbs_notification,sbs_partner,sbs_reporting,sbs_reportstorage,sbs_security,sbs_servicecredits,isaport,eaas,policy_decision_service,sa_seo,project_sunrise,mlaas,virtualagent,m2mcontroller,mobile,api_gateway
+    - name: ENV
+      type: CHOICE
+      value: DEV,ITG,PRO
+    - name: DEPLOY_GREEN
+      description: Deploy version even if already successfully deployed
+      type: BOOLEAN
+      value: "false"
+    - name: SSH_USERNAME
+      type: CHOICE
+      value: devopsdep  
