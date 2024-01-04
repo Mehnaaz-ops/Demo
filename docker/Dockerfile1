@@ -1,0 +1,7 @@
+FROM python:3.6-slim
+
+COPY requirements /tmp/ 
+RUN export http_proxy=http://web-proxy.corp.hpecorp.net:8080 && export https_proxy=http://web-proxy.corp.hpecorp.net:8080 && pip install -r /tmp/requirements
+COPY app.py /tmp/
+COPY git.py /tmp/
+COPY gittags.py /tmp/
