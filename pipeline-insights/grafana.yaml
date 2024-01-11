@@ -1,0 +1,66 @@
+version: '3.7'
+services:
+  goofy:
+    image: grafana/grafana:7.4.0
+    ports: 
+      - "8083:3000"
+    networks:
+      - vsm      
+    environment:    
+      - GF_SECURITY_ADMIN_PASSWORD__FILE=/run/secrets/grafana_password
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_LDAP_ENABLED=true
+      - GF_AUTH_LDAP_CONFIG_FILE=/etc/grafana/ldap.toml
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+      - GF_SERVER_PROTOCOL=https
+      - GF_SERVER_CERT_FILE__FILE=/run/secrets/cert_path
+      - GF_SERVER_CERT_KEY__FILE=/run/secrets/key_path
+    secrets:
+      - grafana_password
+      - source: server_cert
+        target: server_cert.crt
+        mode: 0444
+      - source: server_key
+        target: server_key.key
+        mode: 0444
+      - cert_path
+      - key_path
+    configs:
+      - source: grafana_datasource
+        target: /etc/grafana/provisioning/datasources/grafana_datasource.yaml
+        mode: 0444
+      - source: ldap
+        target: /etc/grafana/ldap.toml
+        mode: 0444
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+      placement:
+         constraints:
+           - "node.labels.nodetype!=perf"
+           - "node.labels.nodetype!=perfdb"
+
+  
+secrets:
+   grafana_password:
+     external: true 
+   server_cert:
+     external: true
+   server_key:
+     external: true
+   cert_path:
+     external: true
+   key_path:
+     external: true
+
+networks:
+  vsm:
+    external: true
+
+configs:
+  grafana_datasource:
+    external: true
+  ldap:
+    external: true
