@@ -1,0 +1,50 @@
+version: '3.7'
+services:
+  jenku:
+    image: hub.docker.hpecorp.net/sa20/update-build-info:3.9
+    command: python /tmp/app.py
+    networks:
+      - vsm      
+    environment:     
+      REST_API: "api_pgrest:3000"
+      PYTHONUNBUFFERED: 1 
+      APP_COUNTER: 90
+    configs:
+      - source: jobs_config
+        target: /jobs_config
+        mode: 0440
+    secrets:
+      - jenkins_username
+      - jenkins_password
+      - jwt
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+      placement:
+        constraints:
+          - "node.labels.nodetype!=perf"
+          - "node.labels.nodetype!=perfdb"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100k"
+        max-file: "5"     
+        
+configs:
+  jobs_config:
+    external: true
+    name: "${CONFIG_NAME}"
+  
+secrets:
+  jenkins_username:
+    external: true
+  jenkins_password:
+    external: true
+  jwt:
+    external: true
+
+networks:
+  vsm:
+    external: true
