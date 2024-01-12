@@ -1,0 +1,18 @@
+# Rotate /var/log/messages daily if the size exceed 500mb and move it to applog
+/var/log/messages {
+    missingok
+    compress
+    rotate 1
+    size {{ size }} 
+    notifempty
+    dateext
+    dateformat -%Y%m%d-%s
+    postrotate
+        /usr/bin/systemctl kill -s HUP rsyslog.service >/dev/null 2>&1 || true
+    endscript
+    lastaction
+       mv /var/log/messages-* /applog/messages/archive
+    # Keeping latest {{ num_of_archived_files }} files in the applog archive and removing the old files
+       rm -f $(ls -t /applog/messages/archive/* | tail -n +`expr {{ num_of_archived_files }} + 1`) 
+    endscript
+}
