@@ -1,0 +1,6 @@
+- hosts: docker-swarm 
+  become: true
+  vars_files:
+  - "env_vars/{{ env_dir }}/env_specific.yml"  
+  roles:
+  - logrotate
