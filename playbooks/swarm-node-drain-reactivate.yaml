@@ -1,0 +1,153 @@
+- name: Drain, Reboot and Re-Activate Swarm cluster - swarm-worker
+  hosts: swarm-worker
+  serial: 2
+  become: true
+  vars_files:
+   - "env_vars/{{ env_dir }}/env_specific.yml"
+   - "vault.yml"
+  tasks:
+    - block:
+      - name: Drain the node
+        shell: docker node update --availability drain {{ ansible_hostname }}
+        delegate_to: "{{ groups['swarm-manager'][0] }}"
+      - name: wait for node to be empty
+        ignore_errors: True
+        shell: docker container ls -f is-task=true -q | wc -l
+        register: container_count
+        until: (container_count.stdout == "0")
+        retries: 100
+        delay: 5
+      - name: Stop the docker service
+        systemd:
+          name: docker
+          state: stopped
+      - name: Ensure group "docker" exists with correct gid
+        group:
+          name: docker
+          state: present
+          gid: 950
+      - name: Reboot node - adhoc requirement through extra vars
+        when: reboot_swarm | default(False)
+        reboot:
+          connect_timeout: 10
+          reboot_timeout: 1800
+      - name: Wait upto 600 seconds for port 22 to become open and contain "OpenSSH"
+        when: reboot_swarm | default(False)
+        wait_for:
+          port: 22
+          host: '{{ (ansible_ssh_host|default(ansible_host))|default(inventory_hostname) }}'
+          search_regex: OpenSSH
+          delay: 10
+          timeout: 600
+        connection: local
+      - name: Start docker daemon on node
+        ignore_errors: True
+        systemd:
+          name: docker
+          enabled: yes
+          state: started
+          daemon_reload: yes
+        register: docker_status
+      - name: Incase if /var/run/docker.sock is a wacky directory
+        shell: "{{ privileged_command }} rm -rf /var/run/docker.sock"
+        when: docker_status is failed
+      - name: Attempt to start docker daemon on node again
+        systemd:
+          name: docker
+          enabled: yes
+          state: started
+          daemon_reload: yes
+        when: docker_status is failed
+      - name: Wait for ready status
+        shell: docker node ls | grep {{ ansible_hostname }}
+        register: node_status
+        until: ("Ready" in node_status.stdout)
+        retries: 100
+        delay: 5
+        delegate_to: "{{ groups['swarm-manager'][0] }}"
+      - name: Prune all exited containers
+        shell: >
+          docker secret rm $(docker secret ls | awk '{print $2}') 2>/dev/null || true;
+          docker system prune -f -a
+      - name: Activate target node
+        shell: >
+          docker node update --availability active {{ ansible_hostname }};
+          sleep 60
+        delegate_to: "{{ groups['swarm-manager'][0] }}"      
+      
+- name: Drain, Reboot and Re-Activate Swarm cluster - swarm-manager
+  hosts: swarm-manager
+  serial: 1
+  become: true
+  vars_files:
+   - "env_vars/{{ env_dir }}/env_specific.yml"
+   - "vault.yml"
+  tasks:
+    - block:
+      - name: Drain the node
+        shell: docker node update --availability drain {{ ansible_hostname }}
+        delegate_to: "{{ groups['swarm-manager'][0] }}"
+      - name: wait for node to be empty
+        ignore_errors: True
+        shell: docker container ls -f is-task=true -q | wc -l
+        register: container_count
+        until: (container_count.stdout == "0")
+        retries: 100
+        delay: 5
+      - name: Stop the docker service
+        systemd:
+          name: docker
+          state: stopped
+      - name: Ensure group "docker" exists with correct gid
+        group:
+          name: docker
+          state: present
+          gid: 950
+      - name: Reboot node - adhoc requirement through extra vars
+        when: reboot_swarm | default(False)
+        reboot:
+          connect_timeout: 10
+          reboot_timeout: 1800
+      - name: Wait upto 600 seconds for port 22 to become open and contain "OpenSSH"
+        when: reboot_swarm | default(False)
+        wait_for:
+          port: 22
+          host: '{{ (ansible_ssh_host|default(ansible_host))|default(inventory_hostname) }}'
+          search_regex: OpenSSH
+          delay: 10
+          timeout: 600
+        connection: local
+      - name: Start docker daemon on node
+        ignore_errors: True
+        systemd:
+          name: docker
+          enabled: yes
+          state: started
+          daemon_reload: yes
+        register: docker_status
+      - name: Incase if /var/run/docker.sock is a wacky directory
+        shell: "{{ privileged_command }} rm -rf /var/run/docker.sock"
+        when: docker_status is failed
+      - name: Attempt to start docker daemon on node again
+        systemd:
+          name: docker
+          enabled: yes
+          state: started
+          daemon_reload: yes
+        when: docker_status is failed
+      - name: Wait for ready status
+        shell: docker node ls | grep {{ ansible_hostname }}
+        register: node_status
+        until: ("Ready" in node_status.stdout)
+        retries: 100
+        delay: 5
+        delegate_to: "{{ groups['swarm-manager'][0] }}"
+      - name: Prune all exited containers
+        shell: >
+          docker secret rm $(docker secret ls | awk '{print $2}') 2>/dev/null || true;
+          docker system prune -f -a
+      - name: Activate target node
+        shell: >
+          docker node update --availability active {{ ansible_hostname }};
+          sleep 60
+        delegate_to: "{{ groups['swarm-manager'][0] }}"
