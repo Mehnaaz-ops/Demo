@@ -1,0 +1,239 @@
+---
+# Playbook to just deploy Docker Enterprise Edition components and add to existing swarm cluster - no SA componets included   
+- name: Hostname Fix on worker nodes if required
+  tags: rotation
+  hosts: new-worker-nodes
+  become: true
+  vars_files:
+  - "env_vars/{{ env_dir }}/env_specific.yml"
+  - "vault.yml" 
+  tasks:
+    - name: obtain hostname
+      command: cat /etc/hostname
+      register: hostname  
+    - name: shorten hostname if needed
+      hostname:
+        name="{{ ansible_hostname }}"
+      when: hostname.stdout != ansible_hostname
+      register: namechange
+    - name: reboot node if requiring name change
+      command: shutdown -r now "Ansible updates triggered"
+      async: 0
+      poll: 0
+      ignore_errors: True
+      when: namechange.changed
+    - name: Waiting for server to come back up
+      local_action: wait_for host="{{ ansible_ssh_host }}" port=22 state=started search_regex=OpenSSH timeout=600 delay=10
+      when: namechange.changed
+
+- name: Hostname Fix on manager nodes if required
+  tags: rotation
+  hosts: "{{ new_manager_group | default(omit) }}"
+  become: true
+  vars_files:
+  - "env_vars/{{ env_dir }}/env_specific.yml"
+  - "vault.yml" 
+  tasks:
+    - name: obtain hostname
+      command: cat /etc/hostname
+      register: hostname  
+    - name: shorten hostname if needed
+      hostname:
+        name="{{ ansible_hostname }}"
+      when: hostname.stdout != ansible_hostname
+      register: namechange
+    - name: reboot node if requiring name change
+      command: shutdown -r now "Ansible updates triggered"
+      async: 0
+      poll: 0
+      ignore_errors: True
+      when: namechange.changed
+    - name: Waiting for server to come back up
+      local_action: wait_for host="{{ ansible_ssh_host }}" port=22 state=started search_regex=OpenSSH timeout=600 delay=10
+      when: namechange.changed
+      
+
+- name: Install Users and Docker EE on Manager nodes
+  hosts: "{{ new_manager_group | default(omit) }}"
+  become: true
+  vars_files:
+  - "env_vars/{{ env_dir }}/env_specific.yml"
+  - "vault.yml"  
+  vars:
+    docker_version: "{{ docker_engine_version }}"
+    docker_user: docker
+  roles:
+    - { role: colos-docker-ee }
+
+  handlers:
+    - name: restart docker service
+      systemd:
+        daemon_reload: yes
+        name: docker
+        state: restarted
+        enabled: yes
+      listen: "restart docker"
+
+- name: Install Users and Docker EE on Worker nodes
+  hosts: "{{ new_worker_group | default(omit) }}"
+  become: true
+  vars_files:
+  - "env_vars/{{ env_dir }}/env_specific.yml"
+  - "vault.yml"  
+  vars:
+    docker_version: "{{ docker_engine_version }}"
+    docker_user: docker
+  roles:
+    - { role: colos-docker-ee }
+
+  handlers:
+    - name: restart docker service
+      systemd:
+        daemon_reload: yes
+        name: docker
+        state: restarted
+        enabled: yes
+      listen: "restart docker"
+      
+- name: Include brim-swsc-client-sa20 (Software Supply Chain) kafka client certificates onto truststore cacert_swsc
+  include: regen-cacert-brim.yml
+  
+- name: include infosight-scaleout kafka client certificates onto truststore cacert_confluentkafka_infosight_scaleout
+  include: regen-cacert-infosight-scaleout.yml
+  
+- name: include infosight-volumeserver kafka client certificates onto truststore cacert_confluentkafka_infosight_volumeserver
+  include: regen-cacert-infosight-volumeserver.yml
+  
+- name: include cacert-omd kafka client certificates onto truststore cacert_confluentkafka_OMD
+  include: regen-cacert-omd.yml
+  
+- name: include julieops kafka client certificates onto truststore cacert_julieops
+  include: regen-cacert-julieops.yml
+  
+- name: include kmcs kafka client certificates onto truststore cacert_confluentkafka_kmcs
+  include: regen-cacert-kafka-kmcs.yml
+
+- name: include entitlement kafka client certificates onto truststore cacert_confluentkafka_entitlement
+  include: regen-cacert-kafka-entitlement.yml
+
+- name: include data-insights client certificates onto truststore cacert_data_insights
+  include: regen-cacert-data-insights.yml
+
+- name: include integration-fabrics client certificates onto truststore cacert_fabrics
+  include: regen-cacert-integration-fabrics.yml
+
+- name: include integration-fabrics-translation-table ssl client certificates to truststore cacerts_fabrics_translation_table
+  include: regen-cacert-integration-fabrics-translation-table.yml
+
+- name: Update cacerts_egc with new Group Contract API getGroupContractEntitlement ssl client certificates
+  include: regen-cacert-entitlement-egc.yml
+
+- name: include addison api client certificates onto truststore cacert_ccn
+  include: regen-cacert-addison.yml
+
+- name: include mpaas client certificates onto truststore cacert_product_tax
+  include: regen-cacert-mpaas-client.yml
+
+- name: include entitlement-equipment client certificates onto truststore cacert_equipment
+  include: regen-cacert-entitlement-equipment.yml
+  
+  
+# Obtain manager and worker tokens
+- hosts: swarm-manager[0]
+  tags: rotation
+  serial: 1
+  become: true
+  gather_facts: yes
+  vars_files:
+  - "env_vars/{{ env_dir }}/env_specific.yml"
+  - "vault.yml"
+  tasks:
+  - name: Get manager swarm join token
+    command: docker swarm join-token --rotate --quiet manager
+    register: manager_join_token
+    changed_when: false
+
+  - name: Get worker swarm join token
+    command: docker swarm join-token --rotate --quiet worker
+    register: worker_join_token
+    changed_when: false
+    
+  - set_fact:
+      manager_join_token: "{{manager_join_token.stdout}}"
+      worker_join_token: "{{worker_join_token.stdout}}"
+      ucp_controller_identifier: "{{ansible_default_ipv4['address']}}:2377"
+
+  - debug:
+      var: manager_join_token
+      
+  - debug:
+      var: worker_join_token
+      
+  - debug:
+      var: ucp_controller_identifier
+      
+# add to manager group    
+- hosts: "{{ new_manager_group | default(omit) }}"
+  tags: rotation
+  serial: 1
+  become: true
+  gather_facts: yes
+  vars_files:
+  - "env_vars/{{ env_dir }}/env_specific.yml"
+  - "vault.yml"
+  roles:
+  - swarm-ee/join-as-manager
+
+# add to worker group
+- hosts: "{{ new_worker_group | default(omit) }}"
+  tags: rotation
+  serial: 1
+  become: true
+  gather_facts: yes
+  vars_files:
+  - "env_vars/{{ env_dir }}/env_specific.yml"
+  - "vault.yml"
+  roles:
+  - swarm-ee/join-as-worker
+  
+- include: add_labels_to_swarm_nodes.yml swarm_group=swarm-interlock label_name=nodetype label_content=loadbalancer
+  tags: rotation
+  
+- include: add_labels_to_swarm_nodes.yml swarm_group=swarm-worker label_name=sa_node label_content=worker
+  tags: rotation
+
+- hosts: "{{ new_manager_group | default(omit) }}"  
+  tags: rotation
+  vars_files:
+  - "env_vars/{{ env_dir }}/env_specific.yml"
+  - "vault.yml"  
+  pre_tasks:
+  - name: create local_stage dir
+    file: 
+      state: directory
+      path: "{{ local_stage_dir }}"
+      mode: 0700
+    delegate_to: localhost  
+  roles:
+    - { role: common/generate-vault-token, when: generate_vault_token | default(false) }
+    - { role: common/load-certs-and-keys }
+    - { role: common/keystore-generation }
+    - { role: common/server-certificate-copy }
+
+- hosts: "{{ new_worker_group | default(omit) }}"  
+  tags: rotation
+  vars_files:
+  - "env_vars/{{ env_dir }}/env_specific.yml"
+  - "vault.yml"  
+  pre_tasks:
+  - name: create local_stage dir
+    file: 
+      state: directory
+      path: "{{ local_stage_dir }}"
+      mode: 0700
+    delegate_to: localhost  
+  roles:
+    - { role: common/generate-vault-token, when: generate_vault_token | default(false) }
+    - { role: common/load-certs-and-keys }
+    - { role: common/keystore-generation }
+    - { role: common/server-certificate-copy }
