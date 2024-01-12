@@ -1,0 +1,28 @@
+- name: create archive folder in /applog
+  file:
+    path: /applog/messages/archive
+    state: directory
+
+- name: move all existing messages files to /applog directory
+  shell: mv /var/log/messages-* /applog/messages/archive 2>/dev/null; true
+
+- name: Copy syslog config file
+  template:
+    src: syslog
+    dest: /etc/logrotate.d/syslog
+    mode: 0644
+
+- name: Copy logrotate config file
+  template:
+    src: logrotate.j2
+    dest: /etc/logrotate.d/logrotate
+    mode: 0644
+ 
+- name: Creates a cron schedule
+  ansible.builtin.cron:
+    name: logrotate 
+    weekday: "*"
+    minute: "0"
+    hour: "*/12"
+    user: root
+    job: "/usr/sbin/logrotate /etc/logrotate.d/logrotate"
