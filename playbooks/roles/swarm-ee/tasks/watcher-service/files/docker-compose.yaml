@@ -1,0 +1,24 @@
+version: '3.5'
+services:
+  watcher:
+    image: "hub.docker.hpecorp.net/sa20/swarm-watcher-service:${WATCHER_VERSION}"
+    environment:
+      SWARM_ENV: "${SWARM_ENV}"
+      SERVICE_RM: "${SERVICE_RM}"
+      SERVICE_UPDATES: "${SERVICE_UPDATES}"
+      SERVICE_OFFBOARD: "${SERVICE_OFFBOARD}"
+    secrets: 
+      - git_token 
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    deploy:
+      placement:
+        constraints:
+          - "node.role==manager"
+      restart_policy:
+        condition: any
+        delay: 600s
+
+secrets:
+  git_token:
+    external: true
