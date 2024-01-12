@@ -1,0 +1,326 @@
+##### FOLDERS #####
+env_dir: "{{ env | lower }}"
+repo: "swarm"
+base_path: '/appdata/curiosity'
+log_base_path: '/applog/curiosity'
+stage_dir: '{{ base_path }}/stage'
+local_stage_dir: "{{ playbook_dir }}/files"
+ansible_local_stage_dir: "{{ local_stage_dir }}/ansible_stage"
+patch_mount_directory: "/mnt/glustermount1/patch-store"
+env_cacerts_file: "cacerts"
+ucp_stg: '/tmp/ucp'
+secrets_stg: '/tmp/secret'
+regen_client_certs: False
+
+update_identity_vault_cred: False
+update_common_vault_cred: True
+send_email: False
+
+docker_engine_major_version: '23.0'
+docker_engine_minor_version: '7'
+docker_engine_version: "docker-ee-{{ docker_engine_major_version }}.{{ docker_engine_minor_version }}"
+docker_cli_version: "docker-ee-cli-{{ docker_engine_major_version }}.{{ docker_engine_minor_version }}"
+docker_ucp_version: '3.7.1'
+ucp_version: "{{ docker_ucp_version }}"
+
+ldap_admin_group: "sa20_swarm_ucp_dev_admins"
+ldap_member_group1: "sa20_swarm_ucp_dev_migration"
+ldap_member_group2: "sa20_swarm_ucp_dev_read"
+
+### Deployment users
+colo_deploy_user: 'devopsdep'
+colo_deploy_group: 'devopsdep'
+csa_deploy_user: 'sa20hadoop'
+csa_deploy_group: 'sa20hadoopgrp'
+user: "devops"
+group: "devops"
+pbrun: "sudo"
+sudo: "sudo"
+pbrun_command: "sudo"
+sudo_command: "sudo"
+privileged_command: "sudo"
+
+# Vault
+domain_role_name: domain-apache-solution-approle
+domain_role_id: d4c5f480-311e-cad4-23e5-b33e9ca0b0d0
+
+## Secret for Keystore genearition role
+keystore_dest: "{{ base_path }}"
+
+## Secret for config_sync application to login to ambari consoles
+ambari_password: "{{ fut_ambari_password }}"
+
+## Identity secrets
+identity_service: "identity_service-rest"
+identity_service_uaa: "identity_service-uaa"
+identity_manager_service: "identity_service-manager"
+identity_sfdc_service: "identity_sfdc-connector"
+identity_rpl_wrapper: "identity_rpl-wrapper"
+identity_vaultclient_p12: "identity-vaultclient.p12"
+identity_vaultclient_p12_password: "identity-vaultclient.password"
+
+## km secrets
+coveo_km_documents_loader_name: "coveo_km_documents_loader"
+coveo_pm_loader_name: "coveo_pm_loader"
+coveo_software_loader_name: "coveo_software_loader"
+coveo_documents_loader_name: "coveo_documents_loader"
+km_web_boot_name: "km_web-boot"
+coveo_km_pm_loader_name: "coveo_km_pm_loader"
+coveo_km_software_loader_name: "coveo_km_software_loader"
+coveo_km_videos_loader_name: "coveo_km_videos_loader"
+vaultclient_p12: "vaultclient.p12"
+vaultclient_p12_password: "vaultclient.password"
+
+## eaas secrets
+eaas_stack_eaas_name: "eaas-stack_eaas"
+eaas_stack_redis_web_ui_name: "eaas-stack_eaas-redis"
+eaas_stack_redis_master_name: "eaas-stack_redis-master"
+eaas_stack_redis_replica_1_name: "eaas-stack_redis-replica-1"
+eaas_stack_redis_replica_2_name: "eaas-stack_redis-replica-2"
+
+ucp_manager_url: "https://{{ groups['swarm-manager'][0] }}"
+
+##### PROXIES #####
+proxy_env:
+  http_proxy: 'http://hpeproxy.its.hpecorp.net:443'
+  https_proxy: 'http://hpeproxy.its.hpecorp.net:443'
+  no_proxy: ".its.hpecorp.net,.it.hpe.com,127.0.0.1,localhost,/var/run/docker.sock"
+  ftp_proxy: "http://hpeproxy.its.hpecorp.net:443"
+  
+proxy_host: "hpeproxy.its.hpecorp.net"
+proxy_port: 443
+proxy_env_host: "{{ proxy_host }}"
+proxy_env_port: "{{ proxy_port }}"
+proxy_env_url: "{{ proxy_env.http_proxy }}"
+
+
+#Certificate variables
+common_name: "{{ env | lower }}-swarm.its.hpecorp.net"
+subject_alternative_names: "{{ groups['swarm-internal-sans'] | join (',') }}"
+kafka_env: 'dev'
+env_cacerts_file_password: 'changeit'
+curiosity_cert: "{{ base_path }}/curiosity.crt"
+curiosity_key: "{{ base_path }}/curiosity.key"
+swarm_server_cert_secrets_list:
+  - service: api-hub-app_ikong
+    secrets: 
+      - name: sec_curiosity.cert
+        file: "{{ curiosity_cert }}"
+        target: sec_curiosity.cert
+        uid: '0'
+        gid: '0'
+        mode: 292
+      - name: sec_curiosity.key
+        file: "{{ curiosity_key }}"
+        target: sec_curiosity.key
+        uid: '0'
+        gid: '0'
+        mode: 292
+  - service: api-hub-app_xkong
+    secrets: 
+      - name: sec_curiosity.cert
+        file: "{{ curiosity_cert }}"
+        target: sec_curiosity.cert
+        uid: '0'
+        gid: '0'
+        mode: 292
+      - name: sec_curiosity.key
+        file: "{{ curiosity_key }}"
+        target: sec_curiosity.key
+        uid: '0'
+        gid: '0'
+        mode: 292
+  - service: api-hub-app_ikongb
+    secrets: 
+      - name: sec_curiosity.cert
+        file: "{{ curiosity_cert }}"
+        target: sec_curiosity.cert
+        uid: '0'
+        gid: '0'
+        mode: 292
+      - name: sec_curiosity.key
+        file: "{{ curiosity_key }}"
+        target: sec_curiosity.key
+        uid: '0'
+        gid: '0'
+        mode: 292
+  - service: api-hub-app_xkongb
+    secrets: 
+      - name: sec_curiosity.cert
+        file: "{{ curiosity_cert }}"
+        target: sec_curiosity.cert
+        uid: '0'
+        gid: '0'
+        mode: 292
+      - name: sec_curiosity.key
+        file: "{{ curiosity_key }}"
+        target: sec_curiosity.key
+        uid: '0'
+        gid: '0'
+        mode: 292
+  - service: eaas-stack_eaas
+    secrets:
+      - name: sec_curiosity.cert
+        file: "{{ curiosity_cert }}"
+        target: curiosity.crt
+        uid: '0'
+        gid: '0'
+        mode: 292
+      - name: sec_curiosity.key
+        file: "{{ curiosity_key }}"
+        target: curiosity.key
+        uid: '0'
+        gid: '0'
+        mode: 292
+  - service: eaas-stack_eaas-redis
+    secrets:
+      - name: sec_curiosity.cert
+        file: "{{ curiosity_cert }}"
+        target: curiosity.crt
+        uid: '0'
+        gid: '0'
+        mode: 292
+      - name: sec_curiosity.key
+        file: "{{ curiosity_key }}"
+        target: curiosity.key
+        uid: '0'
+        gid: '0'
+        mode: 292
+  - service: eaas-stack_content-server
+    secrets:
+      - name: sec_curiosity.cert
+        file: "{{ curiosity_cert }}"
+        target: curiosity.crt
+        uid: '0'
+        gid: '0'
+        mode: 292
+      - name: sec_curiosity.key
+        file: "{{ curiosity_key }}"
+        target: curiosity.key
+        uid: '0'
+        gid: '0'
+        mode: 292
+  - service: m2mcontroller-stack_m2mcontroller
+    secrets:
+      - name: sec_curiosity.cert
+        file: "{{ curiosity_cert }}"
+        target: m2mcontroller_server.crt
+        uid: '0'
+        gid: '0'
+        mode: 292
+      - name: sec_curiosity.key
+        file: "{{ curiosity_key }}"
+        target: m2mcontroller_server.key
+        uid: '0'
+        gid: '0'
+        mode: 292
+  - service: sadb-receiver-stack_sadb-receiver
+    secrets: 
+      - name: sec_curiosity.cert
+        file: "{{ curiosity_cert }}"
+        target: sadb_server.crt
+        uid: '0'
+        gid: '0'
+        mode: 292
+      - name: sec_curiosity.key
+        file: "{{ curiosity_key }}"
+        target: sadb_server.key
+        uid: '0'
+        gid: '0'
+        mode: 292
+  - service: va_backend_channeladaptor_web
+    secrets: 
+      - name: sec_curiosity.cert
+        file: "{{ curiosity_cert }}"
+        target: "/srv/converse/backend_channeladaptor_web/server/ssl/test.crt"
+        uid: '2020'
+        gid: '2020'
+        mode: 256
+      - name: sec_curiosity.key
+        file: "{{ curiosity_key }}"
+        target: "/srv/converse/backend_channeladaptor_web/server/ssl/test.key"
+        uid: '2020'
+        gid: '2020'
+        mode: 256
+  - service: va_backend_core_conversationflowmanager
+    secrets:
+      - name: sec_curiosity.cert
+        file: "{{ curiosity_cert }}"
+        target: "/srv/converse/backend_core_conversationflowmanager/server/ssl/test.crt"
+        uid: '2020'
+        gid: '2020'
+        mode: 256
+      - name: sec_curiosity.key
+        file: "{{ curiosity_key }}"
+        target: "/srv/converse/backend_core_conversationflowmanager/server/ssl/test.key"
+        uid: '2020'
+        gid: '2020'
+        mode: 256
+  - service: va_hpe_frontendreact_service
+    secrets:
+      - name: sec_curiosity.cert
+        file: "{{ curiosity_cert }}"
+        target: "/srv/custom/hpe_frontendreact_service/server/ssl/test.crt"
+        uid: '2020'
+        gid: '2020'
+        mode: 256
+      - name: sec_curiosity.key
+        file: "{{ curiosity_key }}"
+        target: "/srv/custom/hpe_frontendreact_service/server/ssl/test.key"
+        uid: '2020'
+        gid: '2020'
+        mode: 256 
+  - service: va_hpe_salesforceliveagent_service
+    secrets:
+      - name: sec_curiosity.cert
+        file: "{{ curiosity_cert }}"
+        target: "/srv/custom/hpe_salesforceliveagent_service/server/ssl/test.crt"
+        uid: '2020'
+        gid: '2020'
+        mode: 256
+      - name: sec_curiosity.key
+        file: "{{ curiosity_key }}"
+        target: "/srv/custom/hpe_salesforceliveagent_service/server/ssl/test.key"
+        uid: '2020'
+        gid: '2020'
+        mode: 256
+  - service: va_backend_core_choreographerservice
+    secrets: 
+      - name: sec_curiosity.cert
+        file: "{{ curiosity_cert }}"
+        target: "/srv/converse/backend_core_choreographerservice/server/ssl/test.crt"
+        uid: '2020'
+        gid: '2020'
+        mode: 256
+      - name: sec_curiosity.key
+        file: "{{ curiosity_key }}"
+        target: "/srv/converse/backend_core_choreographerservice/server/ssl/test.key"
+        uid: '2020'
+        gid: '2020'
+        mode: 256
+        
+interlock_services:
+  - service: patch-app_web_app
+    labels:
+      - name: com.docker.lb.ssl_cert
+        value: sec_curiosity.cert
+      - name: com.docker.lb.ssl_key
+        value: sec_curiosity.key
+  - service: isaport-stack_sa_isaport
+    labels:
+      - name: com.docker.lb.ssl_cert
+        value: sec_curiosity.cert
+      - name: com.docker.lb.ssl_key
+        value: sec_curiosity.key
+  - service: sa-home-app_web
+    labels:
+      - name: com.docker.lb.ssl_cert
+        value: sec_curiosity.cert
+      - name: com.docker.lb.ssl_key
+        value: sec_curiosity.key
+  - service: dwf-proxy-app_web
+    labels:
+      - name: com.docker.lb.ssl_cert
+        value: sec_curiosity.cert
+      - name: com.docker.lb.ssl_key
+        value: sec_curiosity.key
