@@ -1,0 +1,54 @@
+---
+# Configure EE Engine
+- hosts: docker-swarm:swarm-spares
+  serial: 2
+  become: true
+  vars_files:
+  - "env_vars/{{ env_dir }}/env_specific.yml"
+  - "vault.yml"  
+  vars:
+    upgrade_engine: true
+    docker_version: "{{ docker_engine_version }}"
+    docker_user: docker
+  handlers:
+    - name: restart docker service
+      systemd:
+        daemon_reload: yes
+        name: docker
+        state: restarted
+        enabled: yes
+      listen: "restart docker"
+  pre_tasks:
+    - name: Delete messages
+      shell: >
+        rm -fR /var/log/messages-*
+  roles:
+    - { role: colos-docker-ee }
+    
+# Configure EE Swarm
+- hosts: swarm-manager[0]
+  serial: 1
+  become: true
+  handlers:
+    - name: restart docker service
+      systemd:
+        daemon_reload: yes
+        name: docker
+        state: restarted
+        enabled: yes
+      listen: "restart docker"
+  roles:
+    - { role: swarm-ee/upgrade, when: upgrade_ucp | default(False) }   
+  vars_files:
+  - "env_vars/{{ env_dir }}/env_specific.yml"
+  - "vault.yml"  
+  vars:
+    ucp_version: "{{ docker_ucp_version }}"
+    sa_ucp_admin_name: "admin"
+    upgrade_ucp: true
+
+- name: Apply Custom Configuratons to UCP
+  include: ucp-configure.yml config_ucp=True
+
+- name: Reboot all nodes to get them refreshed
+  include: swarm-node-drain-and-re-activate.yml reboot_swarm=True
