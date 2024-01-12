@@ -1,0 +1,11 @@
+---
+- name: Determine the manager status
+  shell: >
+    docker info | grep '^  Is Manager: ' | cut -d ' ' -f5
+  register: manager_status
+  changed_when: false
+
+- name: Join node as Manager
+  command: docker swarm join --token {{ hostvars[groups['swarm-manager'][0]].manager_join_token }} {{ hostvars[groups['swarm-manager'][0]].ucp_controller_identifier }}
+  register: join_success
+  when: "'true' not in manager_status.stdout_lines"
