@@ -1,0 +1,30 @@
+---
+
+- name: Copy docker compose file
+  copy:
+    src: docker-compose.yml
+    dest: /tmp/docker-compose.yml
+    mode: 0644
+
+
+- name: Create the secrets
+  #docker_secret:
+   # name: git_token
+   # data: "{{ GIT_TOKEN }}"
+   # state: present
+  #no_log: True
+  shell: "if [[ $(docker secret ls|awk '{print $2}'| grep ^git_token$) ]]; then echo 'Found'; else echo ${GIT_TOKEN} | docker secret create git_token -; fi"
+  args:
+    executable: /bin/bash
+  environment:
+    GIT_TOKEN: "{{ GIT_TOKEN }}"
+
+- name: Docker stack deploy
+  shell: "docker stack deploy --with-registry-auth -c /tmp/docker-compose.yml watcher"
+  become: yes
+  environment: 
+     WATCHER_VERSION: "{{ WATCHER_VERSION }}"
+     SWARM_ENV: "{{ SWARM_ENV }}"
+     SERVICE_RM: "{{ SERVICE_RM }}"
+     SERVICE_UPDATES: "{{ SERVICE_UPDATES }}"
+  run_once: True
