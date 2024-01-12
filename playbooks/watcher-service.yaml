@@ -1,0 +1,7 @@
+---
+
+- name: Deploy watcher service onto swarm
+  hosts: swarm-manager
+  roles:
+    - watcher-service
+  run_once: True
