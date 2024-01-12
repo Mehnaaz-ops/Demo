@@ -1,0 +1,65 @@
+host_env: dev
+
+#vars needed by common/hashicorp-client-keystore-generation
+privileged_command: "sudo"
+vault_env_certs_context: "dev"
+ambari_password: "{{ itg_ambari_password }}"
+keystore_password: "{{ non_pro_keystore_password }}"
+##### PROXIES #####
+access_env: "dev"
+
+## kafka client certificate vars ##
+addison_env: "dev"
+
+##### Certificate configuration #####
+vault_env_context: 'dev'
+su_command: "sudo su -c"
+vault_key_context: 'dev'
+
+use_hashicorp_production_vault_for_certs: true
+use_hashicorp_dev_vault_for_certs: false
+use_digitalbadge_proxy: true
+
+##### Docker repo ####
+docker_ee_repo_base: "https://repos.mirantis.com"
+docker_ee_license: "../../../../files/docker-ee-license/docker-dev.lic"
+
+ldap_admin_group: "sa20_swarm_ucp_itg_admins"
+ldap_member_group1: "sa20_swarm_ucp_itg_migration"
+ldap_member_group2: "sa20_swarm_ucp_itg_read"
+
+# Swarm secrets
+swarm_secrets_env:
+  - service: "{{ identity_sfdc_service }}"
+    secrets:
+      - name: "{{ identity_vaultclient_p12 }}"
+        file: "{{ identity_client_p12 }}"
+        labels:
+          type: "pkcs12"
+          service: "{{ identity_sfdc_service }}"
+      - name: "{{ identity_vaultclient_p12_password }}"
+        file: "{{ identity_client_p12_pass }}"
+        labels:
+          type: "pkcs12_password"
+          service: "{{ identity_sfdc_service }}"
+  - service: "{{ identity_rpl_wrapper }}"
+    secrets:
+      - name: "{{ identity_vaultclient_p12 }}"
+        file: "{{ identity_client_p12 }}"
+        labels:
+          type: "pkcs12"
+          service: "{{ identity_rpl_wrapper }}"
+      - name: "{{ identity_vaultclient_p12_password }}"
+        file: "{{ identity_client_p12_pass }}"
+        labels:
+          type: "pkcs12_password"
+          service: "{{ identity_rpl_wrapper }}"
+
+# gluster log rotate settings in /etc/logrotate.d/glusterfs
+log_rotate_days: 15
+
+# size of message file for /var/log/message log rotation 
+size: '500M'
+
+# number of archived files in /applog/messages/archive
+num_of_archived_files: 5 
